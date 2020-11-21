@@ -1,11 +1,17 @@
-# try:
-# 	with open("PongAIvAI.py") as file:
-# 		code = list(file)
-# 	print("Code found")
-# except:
-# 	print("No code found. Proceeding without")
+def directions_from_input(paddle_rect, other_paddle_rect, ball_rect, table_size):
+	keys = pygame.key.get_pressed()
+
+	if keys[pygame.K_UP]:
+		return "up"
+	elif keys[pygame.K_DOWN]:
+		return "down"
+	else:
+		return None
+
+
 
 from random import choice
+
 
 class Player:
 	names = ["Josh", "Bill", "Lucy", "Erwyn", "Stadler", "Matilda", "Emily", "Ted", "Collins", "Christine", "Evan", "Charlie", "Nick", "Maria"]
@@ -28,7 +34,7 @@ class Player:
 		self.debug = False
 		self.verbose = False
 		self.name = choice(Player.names)
-		self.default = "middle"
+		self.leaving = "middle"
 		self.pos = [0, 0]
 		self.__dict__.update(kwargs)
 
@@ -85,11 +91,11 @@ class Player:
 
 		else:
 			if self.debug: print(self.name, "Leaving")
-			if self.default == "middle":
+			if self.leaving == "middle":
 				postion = self.middle()
-			elif self.default == "track":
+			elif self.leaving == "track":
 				postion = self.track(new)
-			elif self.default == "avg":
+			elif self.leaving == "avg":
 				postion = self.avg(new)
 			return postion
 
@@ -106,6 +112,8 @@ class Player:
 
 
 	def __call__(self, frect, enemy, ball, table_size, *args):
+		if not hasattr(self, "table_size") and self.debug:
+			print(self.name, frect.pos)
 		self.table_size = table_size
 		self.size = frect.size
 		self.pos = frect.pos
@@ -124,4 +132,9 @@ class Player:
 			return self.movement(predicted)
 
 pong_ai = Player(default="avg")
-pong_ai2 = Player(default="track")
+
+def chaser(paddle_frect, other_paddle_frect, ball_frect, table_size):
+	if paddle_frect.pos[1]+paddle_frect.size[1]/2 < ball_frect.pos[1]+ball_frect.size[1]/2:
+		return "down"
+	else:
+		return "up"
