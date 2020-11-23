@@ -1,7 +1,7 @@
 import pygame, sys, time, random, os
 from pygame.locals import *
-pygame.init()
 import math
+import configparser
 
 
 white = [255, 255, 255]
@@ -224,38 +224,44 @@ def check_point(score, ball, table_size):
 
 	return (ball, score)
 
-def init_game(speed=100):
-	table_size = (440, 220)
-	paddle_size = (10, 70)
-	ball_size = (15, 15)
-	paddle_speed = 1
-	max_angle = 45
+def init_game(file_name):
+	config = configparser.ConfigParser()
+	config.read(file_name)
+	config = config["game-states"]
 
-	paddle_bounce = 1.2
-	wall_bounce = 1.00
-	dust_error = 0.00
-	init_speed_mag = 2
-	timeout = 0.0003
-	clock_rate = speed
-	turn_wait_rate = 3
-	score_to_win = 5
+	table_size = tuple(map(int, config["table_size"].strip(" ").strip("(").strip(")").split(",")))
+	paddle_size = tuple(map(int, config["paddle_size"].strip(" ").strip("(").strip(")").split(",")))
+	ball_size = tuple(map(int, config["ball_size"].strip(" ").strip("(").strip(")").split(",")))
+	paddle_speed = config.getfloat("paddle_speed")
+	max_angle = config.getfloat("max_angle")
 
+	paddle_bounce = config.getfloat("paddle_bounce")
+	wall_bounce = config.getfloat("wall_bounce")
+	dust_error = config.getfloat("dust_error")
+	init_speed_mag = config.getfloat("init_speed_mag")
+	timeout = config.getfloat("timeout")
+	clock_rate = config.getfloat("clock_rate")
+	turn_wait_rate = config.getfloat("turn_wait_rate")
+	score_to_win = config.getint("score_to_win")
 
-	screen = pygame.display.set_mode(table_size)
-	pygame.display.set_caption('PongAIvAI')
+	display = config.getboolean("display")
+	status = config.getboolean("status")
+
+	if display:
+		pygame.init()
+		screen = pygame.display.set_mode(table_size)
+		pygame.display.set_caption('PongAIvAI')
 
 	paddles = [Paddle((20, table_size[1]/2), paddle_size, paddle_speed, max_angle,  1, timeout),
 			   Paddle((table_size[0]-20, table_size[1]/2), paddle_size, paddle_speed, max_angle, 0, timeout)]
 	ball = Ball(table_size, ball_size, paddle_bounce, wall_bounce, dust_error, init_speed_mag)
 
 	import AIs
-	# paddles[1].move_getter = directions_from_input #chaser_ai.pong_ai
-	
-	return Game(screen, paddles, ball, table_size, clock_rate, turn_wait_rate, score_to_win, True, AIs.pong_ai)
+	return Game(screen if display else None, paddles, ball, table_size, clock_rate, turn_wait_rate, score_to_win, display, status, getattr(AIs, config["ai"]))
 
 
 class Game:
-	def __init__(self, screen, paddles, ball, table_size, clock_rate, turn_wait_rate, score_to_win, display, ai):
+	def __init__(self, screen, paddles, ball, table_size, clock_rate, turn_wait_rate, score_to_win, display, status, ai):
 		self.screen = screen
 		self.paddles = paddles
 		self.ball = ball
@@ -264,6 +270,7 @@ class Game:
 		self.turn_wait_rate = turn_wait_rate
 		self.score_to_win = score_to_win
 		self.display = display
+		self.status = status
 		self.score = [0, 0]
 		self.ai = ai
 
@@ -287,44 +294,46 @@ class Game:
 			if self.score != self.old_score:
 				font = pygame.font.Font(None, 32)
 				if self.score[0] != self.old_score[0]:
-					self.screen.blit(font.render("Left scores!", True, white, black), [0, 32])
+					self.screen.blit(font.render("AI scores!", True, white, black), [0, 32])
 				else:
-					self.screen.blit(font.render("Right scores!", True, white, black), [int(self.table_size[0]/2+20), 32])
+					self.screen.blit(font.render("Chaser scores!", True, white, black), [int(self.table_size[0]/2+20), 32])
 
 
 				pygame.display.flip()
 				clock.tick(self.turn_wait_rate)
 
+			render(self.screen, self.paddles, self.ball, self.score, self.table_size)
 
+			pygame.event.pump()
+			keys = pygame.key.get_pressed()
+			if keys[K_q]:
+				return 
 
-		render(self.screen, self.paddles, self.ball, self.score, self.table_size)
-
-
-
-		pygame.event.pump()
-		keys = pygame.key.get_pressed()
-		if keys[K_q]:
-			return 
-
-
+		elif self.status:
+			if self.score != self.old_score:
+				if self.score[0] != self.old_score[0]:
+					print("AI scores!", self.score)
+				else:
+					print("Chaser scores!", self.score)
 
 		clock.tick(self.clock_rate)
 
 		return "playing", self.paddles[0].frect.copy(), self.paddles[1].frect.copy(), self.ball.frect.copy(), tuple(self.table_size)
 
 	def end(self):
-		font = pygame.font.Font(None, 64)
-		if self.score[0] >self. score[1]:
-			self.screen.blit(font.render("Left wins!", True, white, black), [24, 32])
-		else:
-			self.screen.blit(font.render("Right wins!", True, white, black), [24, 32])
-		pygame.display.flip()
-		clock.tick(2)
+		if self.display: 
+			font = pygame.font.Font(None, 64)
+			if self.score[0] >self. score[1]:
+				self.screen.blit(font.render("AI wins!", True, white, black), [24, 32])
+			else:
+				self.screen.blit(font.render("Chaser wins!", True, white, black), [24, 32])
+			pygame.display.flip()
+			clock.tick(2)
 
-		pygame.event.pump()
-		while any(pygame.key.get_pressed()):
 			pygame.event.pump()
-			clock.tick(30)
+			while any(pygame.key.get_pressed()):
+				pygame.event.pump()
+				clock.tick(30)
 
 		print(self.score)
 		return "ended"
