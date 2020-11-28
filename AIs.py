@@ -1,6 +1,7 @@
 from random import choice, randint
 from math import floor, sqrt, atan, pi, sin, cos
 import pygame
+import numpy as np
 
 
 def directions_from_input(paddle_rect, other_paddle_rect, ball_rect, table_size):
@@ -164,7 +165,7 @@ class Player:
 			return False, None
 
 	def get_angle(self, rel):
-		return (1-2*(self.x < self.table_size[0]/2))*max([min([rel/70, 0.5]), -0.5])*pi/4
+		return (1-2*(self.x < self.table_size[0]/2))*max([min([rel/70, 0.5]), -0.5])*pi/2
 
 	def predict_speed(self):
 		if len(self.ball_speeds) < 1:
@@ -172,91 +173,97 @@ class Player:
 		else:
 			return self.ball_speeds[-1]+sum(self.ball_speeds)/len(self.ball_speeds)
 
-	def __call__(self, frect, enemy, ball, table_size, *args):
-		self.table_size = table_size
-		self.size = frect.size
+	def update_tracking(self, frect, enemy, ball, table_size, *args):
 		self.pos = [frect.pos[0]+frect.size[0]/2, frect.pos[1]+frect.size[1]/2]
 		self.enemy = [enemy.pos[0]+enemy.size[0]/2, enemy.pos[1]+enemy.size[1]/2]
 		self.ball = [ball.pos[0]+ball.size[0]/2, ball.pos[1]+ball.size[1]/2]
-
-
-		if not hasattr(self, "ball_prev"):
-			#senario when the function is first called, this only happens for one tick so the behavior is not to important
-			self.ball_prev = self.ball
-			return self.movement(self.ball[1])
-
-		self.ball_dir = self.ball[0]-self.ball_prev[0] >= 0
+		
 
 		if self.tick == 0:
 			self.edges = [min(self.x+frect.size[0]/2, table_size[0]-self.x-frect.size[0]/2), max(self.x+frect.size[0]/2, table_size[0]-self.x-frect.size[0]/2)]
+			self.table_size = table_size
+			self.size = frect.size
+			self.ball_prev = self.ball
 		elif self.tick == 1:
+			self.ball_dir = self.ball[0]-self.ball_prev[0] >= 0
 			self.paddle_speed = max(self.speed_of(self.self_prev, self.pos), 0.1)
 			self.ball_speeds.append(round(self.speed_of(self.ball_prev, self.ball), 4))
 		else:
+			self.ball_dir = self.ball[0]-self.ball_prev[0] >= 0
 			if self.ball_dir != self.ball_dir_prev:
 				if not self.edges[0] <= self.ball_prev[0] <= self.edges[1]:
 					self.on_score()
 				else:
 					self.on_bounce()
-			# if self.is_point() == (True, "enemy"):
-			# 	print("point")
-			# 	return self.movement(self.middle())
 
-		towards_self = (self.ball[0]-self.ball_prev[0] > 0) == (self.x > self.table_size[0]/2)
-		predicted = self.predict_y(self.ball_prev, self.ball)
-
-
-		if towards_self:
-			possible = [predicted+(-self.size[1]/2+self.size[1]*x/100) for x in range(3) if 0<=predicted+(-self.size[1]/2+self.size[1]*x/100)-self.size[1]/2 and predicted+(-self.size[1]/2+self.size[1]*x/100)+self.size[1]/2<=self.table_size[0]]
-			angles = [self.get_angle(predicted-y) for y in possible]
-
-			velo = [n-o for n, o in zip(self.ball, self.ball_prev)]
-
-			reflections = [[-(cos(theta)*velo[0]-sin(theta)*velo[1]), sin(theta)*velo[0]+cos(theta)*velo[1]] for theta in angles]
-			reflections = [[cos(-theta)*v[0]-sin(-theta)*v[1], cos(-theta)*v[1]+sin(-theta)*v[0]] for theta, v in zip(angles, reflections)]
-
-			dys = [self.predict_y((self.x, predicted), (self.x+v[0], predicted+v[1]))-self.enemy[1] for y, v in zip(possible, reflections)]
-			dys = [dy for dy, v in zip(dys, reflections) if abs(dy/self.paddle_speed) < abs(v[0])]
-
-			print(possible, angles, dys)
-
-			if len(dys) < 1:
-				desired_y = predicted
-
-			else:
-				desired_y = min([(y, abs(dy/v[0])) for y, dy, v in zip(possible, dys, reflections)], key=lambda r: r[1])[0]
-				if self.debug: print(min([(y, dy/v[0]) for y, dy, v in zip(possible, dys, reflections)], key=lambda r: r[1]))
-
-			# desired_y = predicted
-
-		else:
-			if self.leaving == "middle":
-				desired_y = self.middle()
-			elif self.leaving == "track":
-				desired_y = self.track(predicted)
-			elif self.leaving == "avg":
-				desired_y = self.avg(predicted)
-			elif self.leaving == "predict":
-				theta = -self.get_angle(min([max([predicted-(self.enemy[1]-37.5), -37.5]), 37.5]))
-				velo = [n-o for n, o in zip(self.ball, self.ball_prev)]
-				reflection = [-(cos(theta)*velo[0]-sin(theta)*velo[1]), sin(theta)*velo[0]+cos(theta)*velo[1]]
-				reflection = [cos(-theta)*reflection[0]-sin(-theta)*reflection[1], cos(-theta)*reflection[1]+sin(-theta)*reflection[0]]
-				desired_y = self.predict_y((self.enemy[0], predicted), (self.enemy[0]+reflection[0], predicted+reflection[1]))
-
-
-		self.ball_dir_prev = self.ball_dir
+	def end_tick(self):
+		if self.tick > 0: self.ball_dir_prev = self.ball_dir
 		self.ball_prev = self.ball
 		self.self_prev = self.pos
-
 		self.tick += 1
 
+	def best_y(self):
+		safety_factor = 0.1
+		checks = 45
+
+		predicted_y = self.predict_y(self.ball_prev, self.ball)
+		intercepts = np.linspace(max(predicted_y-self.size[1]/2*(1-safety_factor), 0), min(predicted_y+self.size[1]/2*(1-safety_factor), self.table_size[1]), checks)
+
+
+		angles = np.array([*map(self.get_angle, predicted_y-intercepts)])
+		ball_velo = np.array([n-o for n, o in zip(self.ball, self.ball_prev)])
+
+		#Rotate the ball velocity by each angle in angles
+		new_velos = [np.array(((np.cos(theta), -np.sin(theta)), (np.sin(theta), np.cos(theta)))).dot(ball_velo) for theta in angles]
+		return_y = [self.predict_y((self.x, predicted_y), np.array((self.x, predicted_y))+velo) for velo in new_velos]
+
+		#find the intercept that maximizes hom much longer it takes the enemy to move to the ball from how long it takes the ball to get to their side
+		best = max(range(len(intercepts)), key=lambda i: abs(return_y[i]-self.enemy[1])/self.paddle_speed - self.table_size[0]/new_velos[i][0])
+
+		if abs(return_y[best]-self.enemy[1])/self.paddle_speed > self.table_size[0]/new_velos[best][0]:
+			return intercepts[best]
+		else:
+			return predicted_y
+
+	def leaving_behavior(self):
+		if self.leaving == "middle":
+			desired_y = self.middle()
+		elif self.leaving == "track":
+			desired_y = self.track(predicted)
+		elif self.leaving == "avg":
+			desired_y = self.avg(predicted)
+		elif self.leaving == "predict":
+			predicted_y = self.predict_y(self.ball_prev, self.ball)
+			theta = -self.get_angle(predicted_y-self.enemy[1])
+			rotation = np.array(((np.cos(theta), -np.sin(theta)), (np.sin(theta), np.cos(theta))))
+			ball_velo = np.array([n-o for n, o in zip(self.ball, self.ball_prev)])
+			new_velo = rotation.dot(ball_velo)
+			desired_y = self.predict_y((self.x, predicted_y), np.array((self.x, predicted_y))+new_velo)
+
+		return desired_y
+
+	def __call__(self, *args):
+		if self.tick == 0:
+			self.update_tracking(*args)
+			self.end_tick()
+			return None
+
+		self.update_tracking(*args)
+		towards_self = (self.ball[0]-self.ball_prev[0] > 0) == (self.x > self.table_size[0]/2)
+		if towards_self:
+			desired_y = self.best_y()
+		else:
+			desired_y = self.leaving_behavior()
+
+		self.end_tick()
 		return self.movement(desired_y)
 
+def static(*args):
+	return None
+
 def chaser(paddle_frect, other_paddle_frect, ball_frect, table_size):
-	if paddle_frect.pos[1]+paddle_frect.size[1]/2 < ball_frect.pos[1]+ball_frect.size[1]/2:
-		return "down"
-	else:
-		return "up"
+	return ["up", "down"][paddle_frect.pos[1] < ball_frect.pos[1]]
+
 
 if __name__ != '__main__':
 	pong_ai = Player(leaving="middle")
