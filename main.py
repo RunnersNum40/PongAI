@@ -7,7 +7,8 @@ thisfolder = os.path.dirname(os.path.abspath(__file__))
 initfile = os.path.join(thisfolder, 'game.ini')
 
 game = init_game(initfile, 0)
-ai = AIs.Player(leaving="predict")
+# ai = AIs.Player(leaving="predict")
+ai = AIs.pong_ai
 
 move = "stay"
 state = "playing"

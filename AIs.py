@@ -109,10 +109,13 @@ class Player:
 		if old[0]-new[0] == 0:
 			return self.y
 
+		dy = self.edges[1][1]-self.edges[1][0]
+
 		m = (old[1]-new[1])/(old[0]-new[0])
-		l = m*self.edges[new[0]-old[0] >= 0]+(new[1]-m*new[0])
-		p = floor(l/self.table_size[1])
-		return self.table_size[1]*(p%2)+((-1)**p)*(l%self.table_size[1])
+		l = m*self.edges[0][new[0]-old[0] >= 0]+(new[1]-m*new[0])-self.edges[1][0]
+		p = floor(l/dy)
+		y = dy*(p%2)+((-1)**p)*(l%dy)+self.edges[1][0]
+		return y
 
 	def movement(self, desired):
 		"""Takes a predicted position for the ball and returns the correct movement in order to hit it"""
@@ -139,12 +142,13 @@ class Player:
 		self.tracking()
 		if abs(self.ball[0]-self.x) > self.table_size[0]/2 and -self.size[1]/2<=self.ball[1]-(self.enemy[1]-self.size[1]/2)<=self.size[1]/2:
 			self.enemy_dys.append(self.ball[1]-(self.enemy[1]-37.5))
+		print("Bounced at:", self.ball[1]/2+self.ball_prev[1]/2)
 
 	def is_point(self):
 		if len(self.ball_speeds) < 1:
 			return False, None
 
-		x = self.edges[self.ball_dir]
+		x = self.edges[0][self.ball_dir]
 		y = self.predict_y(self.ball_prev, self.ball)
 
 		if self.x == x:
@@ -171,16 +175,16 @@ class Player:
 		if len(self.ball_speeds) < 1:
 			return 2
 		else:
-			return self.ball_speeds[-1]+sum(self.ball_speeds)/len(self.ball_speeds)
+			return self.ball_speeds[-1]*sum(x/y for x, y in zip(self.ball_speeds, self.ball_speeds[1:]))/len(self.ball_speeds-1)
 
 	def update_tracking(self, frect, enemy, ball, table_size, *args):
-		self.pos = [frect.pos[0]+frect.size[0]/2, frect.pos[1]+frect.size[1]/2]
-		self.enemy = [enemy.pos[0]+enemy.size[0]/2, enemy.pos[1]+enemy.size[1]/2]
-		self.ball = [ball.pos[0]+ball.size[0]/2, ball.pos[1]+ball.size[1]/2]
-		
+		self.pos = (int(frect.pos[0]+frect.size[0]/2), int(frect.pos[1]+frect.size[1]/2))
+		self.enemy = (int(enemy.pos[0]+enemy.size[0]/2), int(enemy.pos[1]+enemy.size[1]/2))
+		self.ball = (ball.pos[0]+ball.size[0]/2, ball.pos[1]+ball.size[1]/2)
 
 		if self.tick == 0:
-			self.edges = [min(self.x+frect.size[0]/2, table_size[0]-self.x-frect.size[0]/2), max(self.x+frect.size[0]/2, table_size[0]-self.x-frect.size[0]/2)]
+			self.edges = ((min(self.x+frect.size[0]/2, table_size[0]-self.x-frect.size[0]/2)+frect.size[0]/2+ball.size[0]/2, max(self.x+frect.size[0]/2, table_size[0]-self.x-frect.size[0]/2)-frect.size[0]/2-ball.size[0]/2),
+						  (ball.size[1]/2, table_size[1]-ball.size[1]/2))
 			self.table_size = table_size
 			self.size = frect.size
 			self.ball_prev = self.ball
@@ -191,7 +195,7 @@ class Player:
 		else:
 			self.ball_dir = self.ball[0]-self.ball_prev[0] >= 0
 			if self.ball_dir != self.ball_dir_prev:
-				if not self.edges[0] <= self.ball_prev[0] <= self.edges[1]:
+				if abs(self.ball[0]-self.ball_prev[0])>self.table_size[0]/3:
 					self.on_score()
 				else:
 					self.on_bounce()
@@ -209,6 +213,8 @@ class Player:
 		predicted_y = self.predict_y(self.ball_prev, self.ball)
 		intercepts = np.linspace(max(predicted_y-self.size[1]/2*(1-safety_factor), 0), min(predicted_y+self.size[1]/2*(1-safety_factor), self.table_size[1]), checks)
 
+		if self.tick%100 == 50:
+			print("Going towards:", predicted_y)
 
 		angles = np.array([*map(self.get_angle, predicted_y-intercepts)])
 		ball_velo = np.array([n-o for n, o in zip(self.ball, self.ball_prev)])
@@ -216,13 +222,13 @@ class Player:
 		#Rotate the ball velocity by each angle in angles
 		new_velos = [np.array(((np.cos(theta), -np.sin(theta)), (np.sin(theta), np.cos(theta)))).dot(ball_velo) for theta in angles]
 		return_y = [self.predict_y((self.x, predicted_y), np.array((self.x, predicted_y))+velo) for velo in new_velos]
-
-		#find the intercept that maximizes hom much longer it takes the enemy to move to the ball from how long it takes the ball to get to their side
 		best = max(range(len(intercepts)), key=lambda i: abs(return_y[i]-self.enemy[1])/self.paddle_speed - self.table_size[0]/new_velos[i][0])
 
 		if abs(return_y[best]-self.enemy[1])/self.paddle_speed > self.table_size[0]/new_velos[best][0]:
-			return intercepts[best]
+			#find the intercept that maximizes hom much longer it takes the enemy to move to the ball from how long it takes the ball to get to their side
+			return min(predicted_y+self.size[1]/2, max(predicted_y-self.size[1]/2, intercepts[best]))
 		else:
+			best = max(range(len(intercepts)), key=lambda i: abs(return_y[i]-self.enemy[1])/self.paddle_speed - self.table_size[0]/new_velos[i][0])
 			return predicted_y
 
 	def leaving_behavior(self):

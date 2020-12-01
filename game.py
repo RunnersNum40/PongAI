@@ -3,7 +3,6 @@ from pygame.locals import *
 import math
 import configparser
 
-
 white = [255, 255, 255]
 black = [0, 0, 0]
 clock = pygame.time.Clock()
@@ -15,6 +14,7 @@ class fRect:
 	def __init__(self, pos, size):
 		self.pos = (pos[0], pos[1])
 		self.size = (size[0], size[1])
+
 	def move(self, x, y):
 		return fRect((self.pos[0]+x, self.pos[1]+y), self.size)
 
