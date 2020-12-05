@@ -2,6 +2,7 @@ import pygame, sys, time, random, os
 from pygame.locals import *
 import math
 import configparser
+from time import sleep
 
 white = [255, 255, 255]
 black = [0, 0, 0]
@@ -218,10 +219,12 @@ def check_point(score, ball, table_size):
 	if ball.frect.pos[0]+ball.size[0]/2 < 0:
 		score[1] += 1
 		ball = Ball(table_size, ball.size, ball.paddle_bounce, ball.wall_bounce, ball.dust_error, ball.init_speed_mag)
+		# sleep(1)
 		return (ball, score)
 	elif ball.frect.pos[0]+ball.size[0]/2 >= table_size[0]:
 		ball = Ball(table_size, ball.size, ball.paddle_bounce, ball.wall_bounce, ball.dust_error, ball.init_speed_mag)
 		score[0] += 1
+		# sleep(1)
 		return (ball, score)
 
 	return (ball, score)

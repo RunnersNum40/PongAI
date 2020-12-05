@@ -7,7 +7,17 @@ def angle(dy, angle):
 		s = -1
 	else:
 		s = 1
-	return angle+s*dy*0.02243995
+
+	theta = s*dy*0.011219974
+
+	v = [math.cos(angle), math.sin(angle)]
+	v = [math.cos(theta)*v[0]-math.sin(theta)*v[1],
+		 math.sin(theta)*v[0]+math.cos(theta)*v[1]]
+	v[0] = -v[0]
+	v = [math.cos(-theta)*v[0]-math.sin(-theta)*v[1],
+		  math.cos(-theta)*v[1]+math.sin(-theta)*v[0]]
+
+	return math.atan2(v[1], v[0])
 
 class State:
 	"""Object represntation of the game state"""
@@ -23,16 +33,16 @@ class State:
 		else:
 			self.side = 0
 
-		# print("side", self.side, "angle", self.ball.angle)
-		# print(self.ball.pos[0]-self.table[0][self.side], math.cos(self.ball.angle), self.ball.speed)
-		self.ticks = int(abs(self.ball.pos[0]-self.table[0][self.side])/abs(math.cos(self.ball.angle))*self.ball.speed)
-		# print("Ticks:", self.ticks)
+		self.ticks = int(abs(self.ball.pos[0]-self.table[0][not self.side])/(abs(math.cos(self.ball.angle))*self.ball.speed))
 
 	def is_win(self):
 		"""Check if value is high or low enough"""
 		return (self.value>0) == (self.side==0)
 
 	def evaluate(self):
+		"""Return a static evaluate of the state.
+		The result is the number of ticks between when the ball hits the side and when the paddle could arrive at that position.
+		The sign of the result depends on the side the ball is traveling towards"""
 		if self.side == 1:
 			paddle_y = self.paddle2
 			dx = self.table[0][1]-self.ball.pos[0]
@@ -40,27 +50,25 @@ class State:
 			paddle_y = self.paddle1
 			dx = self.ball.pos[0]-self.table[0][0]
 
-		dy = abs(self.ball.hit[1]-paddle_y)
+		dy = max(abs(self.ball.hit[1]-paddle_y)-35, 0)
 		return (dy-self.ticks)*(1-2*self.side)
 
 	def children(self):
 		if self.side:
-			paddle_y = self.paddle2
-		else:
 			paddle_y = self.paddle1
+		else:
+			paddle_y = self.paddle2
 
-		lower = max(int(self.ball.hit[1]-30), 35, paddle_y-self.ticks)
-		upper = min(int(self.ball.hit[1]+30), 245, paddle_y+self.ticks)
+		lower = max(int(self.ball.hit[1]-30), 35)#, paddle_y-self.ticks*0.9)
+		upper = min(int(self.ball.hit[1]+30), 245)#, paddle_y+self.ticks*0.9)
 
 		possible = np.arange(lower, upper)
-		print(lower, upper, possible)
-		angles = angle(self.ball.hit[1]-possible, self.ball.angle)
-		print(self.ball.angle, angles-self.ball.angle)
+		angles = np.array([angle(self.ball.hit[1]-p, self.ball.angle) for p in possible])
 
 		if self.side:
-			return [State(self.paddle1, y, (self.ball.hit, a, self.ball.speed*1.2), self.table) for y, a in zip(possible, angles)]
-		else:
 			return [State(y, self.paddle2, (self.ball.hit, a, self.ball.speed*1.2), self.table) for y, a in zip(possible, angles)]
+		else:
+			return [State(self.paddle1, y, (self.ball.hit, a, self.ball.speed*1.2), self.table) for y, a in zip(possible, angles)]
 
 	def __eq__(self, val):
 		return self.value == val
@@ -101,32 +109,18 @@ class Ball:
 	def __str__(self):
 		return "Position: {},   Angle: {},   Speed: {}".format(self.pos, self.angle, self.speed)
 
-class CompareObject:
-	"""Used for comparison"""
-	def __init__(self, evaluate_to="greater"):
-		#Set how the object with evaluate in comparisons
-		self.eval = {"greater":True, "lesser":False}[evaluate_to.lower()]
-
-	def __gt__(self, val):
-		return self.eval
-
-	def __lt__(self, val):
-		return not self.eval
-
 #Right is maximizing player, Left is minimizing
-def minimax(state, depth, maximizingPlayer=True, alpha=1000000000000, beta=-1000000000000):
+def minimax(state, depth, maximizingPlayer=True, alpha=math.inf, beta=-math.inf):
 	if depth == 0:
 		state.value = state.evaluate()
 		return state
 
-	print("Generating children")
 	children = state.children()
 	if len(children) == 0:
-		print("No children")
 		return minimax(state, depth-1, maximizingPlayer, alpha, beta)
 
 	if maximizingPlayer:
-		maxEval = CompareObject("lesser")
+		maxEval = -math.inf
 		for child in children:
 			child.value = minimax(child, depth-1, alpha, beta, False).value
 			maxEval = max(maxEval, child)
@@ -137,7 +131,7 @@ def minimax(state, depth, maximizingPlayer=True, alpha=1000000000000, beta=-1000
 		return maxEval
 
 	else:
-		minEval = CompareObject("greater")
+		minEval = math.inf
 		for child in children:
 			child.value = minimax(child, depth-1, alpha, beta, True).value
 			minEval = min(minEval, child)
@@ -157,33 +151,42 @@ class MinMaxer:
 		self.tracking(*args)
 
 		if self.tick > 0:
+			towards_self = (self.ball[0] < self.ball_prev[0]) == self.side
 			state = self.to_state()
-			desired_state = minimax(state, self.depth, self.pos[0] > 220)
+			if towards_self:
+				desired_state = minimax(state, self.depth, not self.side)
+			else:
+				desired_state = minimax(state, self.depth, self.side)
 		else:
-			#If there is not enough information to start tracking the ball just pretend we want to be where we are
-			desired_state = State(self.pos[1], self.pos[1], ((0, 0), 0, 0))
+			self.store_tick()
+			return None
 
+		move = self.state_to_move(desired_state)
 		self.store_tick()
-		return self.state_to_move(desired_state)
-
+		return move
 
 	def state_to_move(self, state):
 		"""Take a state and return the desired movement command"""
 		#If self is on the left side use the left paddle
-		if self.pos[0] <= 220:
-			desired_y = state.paddle1
+		towards_self = (self.ball[0] < self.ball_prev[0]) == self.side
+		if towards_self:
+			if self.side:
+				desired_y = state.paddle1
+			else:
+				desired_y = state.paddle2
 		else:
-			desired_y = state.paddle2
+			# desired_y = state.ball.hit[1]
+			desired_y = 140
 
 		if desired_y > self.pos[1]:
-			return "up"
-		elif desired_y < self.pos[1]:
 			return "down"
+		elif desired_y < self.pos[1]:
+			return "up"
 		else:
-			return None
+			return desired_y
 
 	def to_state(self):
-		"""Return a State object represntation of the current understanding of the board"""
+		"""Return a State object representation of the current understanding of the board"""
 		if self.pos[0] <= 110:
 			paddle1 = self.pos[1]
 			paddle2 = self.enemy[1]
@@ -195,7 +198,6 @@ class MinMaxer:
 		angle = math.atan2(ball_change[1], ball_change[0])%(2*math.pi)
 		speed = math.sqrt(ball_change[0]**2+ball_change[1]**2)
 
-		print("State:", paddle1, paddle2, (self.ball, angle, speed))
 		return State(paddle1, paddle2, (self.ball, angle, speed))
 
 	def tracking(self, frect, enemy, ball, table_size, *args):
@@ -208,6 +210,7 @@ class MinMaxer:
 
 		if not hasattr(self, "tick"):
 			self.tick = 0
+			self.side = self.pos[0] <= 220
 		else:
 			self.tick += 1
 
@@ -219,29 +222,34 @@ class MinMaxer:
 
 
 if __name__ == "__main__":
-	class frect:
-		pass
-	player = MinMaxer()
-	one = frect()
-	one.pos = (15, 105)
-	two = frect()
-	two.pos = (425, 105)
-	ball = frect()
-	ball.pos = (212.5, 132.5)
-	print(player(one, two, ball, (440, 280)))
-	ball.pos = (211.5, 133.5)
-	print(player(one, two, ball, (440, 280)))
+	# class frect:
+	# 	pass
+	# player = MinMaxer()
+	# one = frect()
+	# one.pos = (15, 210)
+	# two = frect()
+	# two.pos = (425, 105)
+	# ball = frect()
+	# ball.pos = (212.5, 132.5)
+	# print("Go", player(one, two, ball, (440, 280)))
+	# ball.pos = (211.5, 132.5)
+	# print("Go", player(one, two, ball, (440, 280)))
+	# ball.pos = (210.5, 132.5)
+	# print("Go", player(one, two, ball, (440, 280)))
 
 
-	# from time import perf_counter_ns as timer
-	# times = []
+	from time import perf_counter_ns as timer
+	times = []
 
-	# state = State(0, 0, ((220, 140), math.pi/4, 1), ((27.5, 412.5), (7.5, 272.5)))
-	# for x in range(10):
-	# 	print(state)
-	# 	start = timer()
-	# 	state = minimax(state, 2, x%2==0)
-	# 	times.append(timer()-start)
+	state = State(0, 0, ((220, 140), math.pi/4, 1), ((27.5, 412.5), (7.5, 272.5)))
+	for x in range(10):
+		# print(state)
+		start = timer()
+		state = minimax(state, 3, x%2==0)
+		times.append(timer()-start)
 
-	# print(state)
-	# print("Avg time: {}ms,   Max time {}ms".format(sum(times)/len(times)/1000000, max(times)/1000000))
+	print(state)
+	print("Avg time: {}ms,   Max time {}ms".format(sum(times)/len(times)/1000000, max(times)/1000000))
+
+	# state = State(71, 165, ((300.1343372201874, 204.29619166034888), 3.0650548976879777, 3.4560000000000075))
+	# print(minimax(state, 3, True))

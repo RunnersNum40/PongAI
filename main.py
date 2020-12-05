@@ -1,5 +1,7 @@
 from game import init_game
 import AIs
+import player
+from minmax import MinMaxer
 import os
 import pygame
 
@@ -8,7 +10,7 @@ initfile = os.path.join(thisfolder, 'game.ini')
 
 game = init_game(initfile, 0)
 # ai = AIs.Player(leaving="predict")
-ai = AIs.pong_ai
+ai = player.Player()
 
 move = "stay"
 state = "playing"

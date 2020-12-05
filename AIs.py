@@ -142,7 +142,6 @@ class Player:
 		self.tracking()
 		if abs(self.ball[0]-self.x) > self.table_size[0]/2 and -self.size[1]/2<=self.ball[1]-(self.enemy[1]-self.size[1]/2)<=self.size[1]/2:
 			self.enemy_dys.append(self.ball[1]-(self.enemy[1]-37.5))
-		print("Bounced at:", self.ball[1]/2+self.ball_prev[1]/2)
 
 	def is_point(self):
 		if len(self.ball_speeds) < 1:
@@ -212,9 +211,6 @@ class Player:
 
 		predicted_y = self.predict_y(self.ball_prev, self.ball)
 		intercepts = np.linspace(max(predicted_y-self.size[1]/2*(1-safety_factor), 0), min(predicted_y+self.size[1]/2*(1-safety_factor), self.table_size[1]), checks)
-
-		if self.tick%100 == 50:
-			print("Going towards:", predicted_y)
 
 		angles = np.array([*map(self.get_angle, predicted_y-intercepts)])
 		ball_velo = np.array([n-o for n, o in zip(self.ball, self.ball_prev)])
