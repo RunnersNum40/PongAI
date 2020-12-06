@@ -8,7 +8,7 @@ import pygame
 thisfolder = os.path.dirname(os.path.abspath(__file__))
 initfile = os.path.join(thisfolder, 'game.ini')
 
-game = init_game(initfile, 0)
+game = init_game(initfile, 1)
 # ai = AIs.Player(leaving="predict")
 ai = player.Player()
 
