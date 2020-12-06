@@ -25,7 +25,6 @@ def angle(dy, v):
 
 
 def predict(pos, old_pos):
-	start = timer()
 	#Between 90 and 270 means headed to the left
 	if pos[0] < old_pos[0]:
 		x = 27.5
@@ -37,10 +36,6 @@ def predict(pos, old_pos):
 	m = (pos[1]-old_pos[1])/(pos[0]-old_pos[0])
 	l = m*x+pos[1]-m*pos[0]-7.5
 	p = math.floor(l/265)
-
-	265*(p%2)+((-1)**p)*(l%265)+7.5
-	print((timer()-start)/1000000)
-
 	return x, 265*(p%2)+((-1)**p)*(l%265)+7.5
 
 
@@ -80,10 +75,11 @@ class Player:
 		return self.move
 
 	def best_y(self):
-		preformances, results, possible = self.compute()
-		return self.choose(preformances, results, possible)
+		pool_results = self.compute()
+		move = self.choose(*list(zip(*pool_results)))
+		return move
 
-	def choose(self, preformances, results, possible):
+	def choose(self, preformances, results, possible): #Current time is 0.012ms
 		"""Choose which of the possible ys to use given the results of compute"""
 		if min(preformances) > 0:
 			#if no hits win this turn aim to hit to the corner opposite the opponent
@@ -96,9 +92,8 @@ class Player:
 			best = possible[preformances.index(min(preformances))]
 			return best
 
-	def compute(self):
+	def compute(self): #Current time 0.02
 		"""Spawn a process and get the results"""
-		start = timer()
 		v = (self.ball[0]-self.ball_prev[0], self.ball[1]-self.ball_prev[1])
 		enemy = self.enemy[1]
 		hit = predict(self.ball, self.ball_prev)
@@ -108,11 +103,8 @@ class Player:
 
 		#The possible positions to intercept the ball at
 		possible = [*range(lower, upper)]
-		with mp.Pool(mp.cpu_count()) as pool:
-			times.append(timer()-start)
-			pool_results = pool.map(partial(preformance, hit=hit, v=v, enemy=enemy), possible)
-		print(times[-1]/1000000)
-		return list(zip(*pool_results))
+		pool_results = map(partial(preformance, hit=hit, v=v, enemy=enemy), possible)
+		return pool_results
 
 
 	def y_to_move(self, desired_y):
@@ -140,6 +132,7 @@ class Player:
 			self.tick += 1
 			self.ball_dir = math.atan2(self.ball[1]-self.ball_prev[1], self.ball[0]-self.ball_prev[0])
 
+
 	def store_tick(self):
 		"""Store the old information"""
 		self.pos_prev = self.pos
@@ -148,10 +141,9 @@ class Player:
 		if self.tick > 1:
 			self.ball_dir_prev = self.ball_dir
 
+
 	def __del__(self):
-		print("Max time: {},   Avg time: {}".format(max(times)/1000000, sum(times)/len(times)/1000000))
-
-
+		print("Max time: {},   Avg time: {}".format(max(times)/803030, sum(times)/len(times)/803030))
 
 if __name__ == '__main__':
 	predict((0, 0), (100, 100))
