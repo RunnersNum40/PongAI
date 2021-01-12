@@ -76,8 +76,8 @@ class Paddle:
 
 
     def move(self, enemy_frect, ball_frect, table_size):
-        direction = self.move_getter(self.frect.copy(), enemy_frect.copy(), ball_frect.copy(), tuple(table_size))
-        # direction = timeout(self.move_getter, (self.frect.copy(), enemy_frect.copy(), ball_frect.copy(), tuple(table_size)), {}, self.timeout)
+        # direction = self.move_getter(self.frect.copy(), enemy_frect.copy(), ball_frect.copy(), tuple(table_size))
+        direction = timeout(self.move_getter, (self.frect.copy(), enemy_frect.copy(), ball_frect.copy(), tuple(table_size)), {}, self.timeout)
         if direction == "up":
             self.frect.move_ip(0, -self.speed)
         elif direction == "down":
@@ -369,10 +369,10 @@ def init_game():
     wall_bounce = 1.00
     dust_error = 0.00
     init_speed_mag = 2
-    timeout = 0.0003
-    clock_rate = 80
+    timeout = 0.0001
+    clock_rate = 120
     turn_wait_rate = 3
-    score_to_win = 5
+    score_to_win = 25
 
 
     screen = pygame.display.set_mode(table_size)
@@ -385,10 +385,10 @@ def init_game():
     
     
     
-    import player, AIs
+    import pong_ai, AIs, player
     
-    paddles[1].move_getter = AIs.defender
-    paddles[0].move_getter = player.Player() #chaser_ai.pong_ai
+    paddles[1].move_getter = AIs.chaser
+    paddles[0].move_getter = player.pong_ai #chaser_ai.pong_ai
     
     paddles[1].color = white
     paddles[0].color = red
