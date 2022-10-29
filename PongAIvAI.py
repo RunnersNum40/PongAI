@@ -1,30 +1,8 @@
-#   PongAIvAI
-#   Authors: Michael Guerzhoy and Denis Begun, 2014-2020.
-#   http://www.cs.toronto.edu/~guerzhoy/
-#   Email: guerzhoy at cs.toronto.edu
-#
-#   This program is free software: you can redistribute it and/or modify
-#   it under the terms of the GNU General Public License as published by
-#   the Free Software Foundation, either version 3 of the License, or
-#   (at your option) any later version. You must credit the authors
-#   for the original parts of this code.
-#
-#   This program is distributed in the hope that it will be useful,
-#   but WITHOUT ANY WARRANTY; without even the implied warranty of
-#   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#   GNU General Public License for more details.
-#
-#   Parts of the code are based on T. S. Hayden Dennison's PongClone (2011)
-#   http://www.pygame.org/project-PongClone-1740-3032.html
-
-
-
 import pygame, sys, time, random, os
 from pygame.locals import *
 
 import math
 from time import perf_counter_ns as timer
-
 
 white = [255, 255, 255]
 black = [0, 0, 0]
@@ -60,7 +38,6 @@ class fRect:
                 if self.pos[i] >= other_frect.pos[i] + other_frect.size[i]:
                     return 0
         return 1#self.size > 0 and other_frect.size > 0
-
 
 class Paddle:
     def __init__(self, pos, size, speed, max_angle,  facing, timeout):
@@ -105,10 +82,6 @@ class Paddle:
         sign = 1-2*self.facing
 
         return sign*rel_dist_from_c*self.max_angle*math.pi/180
-
-
-
-
 
 class Ball:
     def __init__(self, table_size, size, paddle_bounce, wall_bounce, dust_error, init_speed_mag):
@@ -221,7 +194,6 @@ class Ball:
             #print "moving "
         #print "poition: ", self.frect.pos
 
-
 def directions_from_input(paddle_rect, other_paddle_rect, ball_rect, table_size):
     keys = pygame.key.get_pressed()
 
@@ -231,9 +203,6 @@ def directions_from_input(paddle_rect, other_paddle_rect, ball_rect, table_size)
         return "down"
     else:
         return None
-
-
-
 
 def timeout(func, args=(), kwargs={}, timeout_duration=1, default=None):
     '''From:
@@ -276,8 +245,6 @@ def render(screen, paddles, ball, score, table_size):
 
     pygame.display.flip()
 
-
-
 def check_point(score, ball, table_size):
     if ball.frect.pos[0]+ball.size[0]/2 < 0:
         score[1] += 1
@@ -293,10 +260,6 @@ def check_point(score, ball, table_size):
 
 def game_loop(screen, paddles, ball, table_size, clock_rate, turn_wait_rate, score_to_win, display):
     score = [0, 0]
-
-
-
-
 
     while max(score) < score_to_win:
         start = timer()
@@ -322,22 +285,15 @@ def game_loop(screen, paddles, ball, table_size, clock_rate, turn_wait_rate, sco
             else:
                 screen.blit(font.render("Right scores!", True, white, black), [int(table_size[0]/2+20), 32])
 
-
             pygame.display.flip()
             clock.tick(turn_wait_rate)
 
-
-
         render(screen, paddles, ball, score, table_size)
-
-
 
         pygame.event.pump()
         keys = pygame.key.get_pressed()
         if keys[K_q]:
             return
-
-
 
         clock.tick(clock_rate)
         # print((timer()-start)/1000000)
@@ -355,9 +311,6 @@ def game_loop(screen, paddles, ball, table_size, clock_rate, turn_wait_rate, sco
         pygame.event.pump()
         clock.tick(30)
 
-    print(score)
-    # return
-
 def init_game():
     table_size = (440, 280)
     paddle_size = (10, 70)
@@ -374,19 +327,13 @@ def init_game():
     turn_wait_rate = 3
     score_to_win = 25
 
-
     screen = pygame.display.set_mode(table_size)
     pygame.display.set_caption('PongAIvAI')
 
     paddles = [Paddle((20, table_size[1]/2), paddle_size, paddle_speed, max_angle,  1, timeout),
                Paddle((table_size[0]-20, table_size[1]/2), paddle_size, paddle_speed, max_angle, 0, timeout)]
     ball = Ball(table_size, ball_size, paddle_bounce, wall_bounce, dust_error, init_speed_mag)
-
-    
-    
-    
     import pong_ai, AIs, player
-    
     paddles[1].move_getter = AIs.chaser
     paddles[0].move_getter = player.pong_ai #chaser_ai.pong_ai
     
@@ -403,8 +350,6 @@ def init_game():
     paddles[0].move_getter, paddles[1].move_getter = paddles[1].move_getter, paddles[0].move_getter
     
     game_loop(screen, paddles, ball, table_size, clock_rate, turn_wait_rate, score_to_win, 1)
-    
-    
     
     pygame.quit()
 
